@@ -1,3 +1,5 @@
+import pg8000
+
 from sqlalchemy import create_engine, select, Table, Column, Integer, String, MetaData, ForeignKey, Boolean
 
 meta = MetaData()
@@ -8,7 +10,18 @@ users = Table('Users', meta,
     Column('Admin_roots', Boolean, nullable = False)
 )
 
-engine = create_engine("postgresql+pg8000://root:root@localhost/BedaSBD", echo = True)
+coffes = Table('Coffe_orders', meta,
+    Column('Order_ID', Integer, primary_key = True),
+    Column('Orderer_name', String(250), nullable = False),
+    Column('Coffe_type', String(250), nullable = False),
+    Column('Coffe_size', String(250), nullable = False),
+    Column('Sugar_count', Integer, nullable = False),
+    Column('Milk_count', Integer, nullable = False),
+    Column('Cinnamon_count', Integer, nullable = False),
+    Column('Price', Integer, nullable = False)
+)
+
+engine = create_engine("postgresql+pg8000://postgres:root@localhost/BedaSDB", echo = True)
 meta.create_all(engine)
 
 con = engine.connect()
@@ -24,11 +37,6 @@ sizes = {
     '1': "Маленький",
     '2': "Средний",
     '3': "Большой"
-}
-adds = {
-    '1': "Сахар",
-    '2': "Молоко",
-    '3': "Корица"
 }
 types_prices = {
     "Эспрессо": 153,
@@ -56,18 +64,20 @@ class CofeeMachine(object):
     def ChooseUser(self):
         self.screen.StartInput()
         intruder = input();
-        if con.execute(users.select().where(users.c.User_name == intruder)) != None:
-            proto_current_user = con.execute(users.select().where(users.c.name == intruder))
-            current_user = User(proto_current_user.User_name, proto_current_user.Admin_roots)
+        result1 = users.select().where(users.c.User_name == intruder)
+        result2 = con.execute(result1)
+        result3 = result2.fetchall()
+        if len(result3) != 0:
+            current_user = User(result3[0][1], result3[0][2])
         else:
             self.screen.ChooseCreate()
             while True:
                 chose = input();
                 if chose == '1' or chose == '2':
-                    if chose == 1:
+                    if chose == '1':
                         current_user = self.CreateUser(intruder);
                         break
-                    if chose == 2:
+                    if chose == '2':
                         self.ChooseUser()
                 else: self.screen.ErorrMessage()
         self.MainMenu(current_user)
@@ -104,19 +114,54 @@ class CofeeMachine(object):
         while True:
             chose = input();
             if chose == '1' or chose == '2':
-                if chose == 1:
+                if chose == '1':
                     is_admin = True;
                     break
-                if chose == 2:
+                if chose == '2':
                     is_admin = False
                     break
             else:
                 self.screen.ErorrMessage()
-        user_ad = users.insert().values(name, is_admin)
+        user_ad = users.insert().values(User_name = name, Admin_roots = is_admin)
         con.execute(user_ad)
         return (User(name, is_admin))
 
-    def MainMenu(self, currentUser):
+    def MainMenu(self, current_user):
+        if current_user.is_admin == True:
+            self.screen.AdminMenu()
+            while True:
+                chose = input()
+                if chose == '1' or chose == '2' or chose == '3' or chose == '4':
+                    if chose == '1':
+                         self.Cook_Coffee()
+                         break
+                    if chose == '2':
+                         self.GiveCofeeCup()
+                    if chose == '3':
+                         self.Cook_Coffee()
+                         break
+                    if chose == '4':
+                        self.ChooseUser()
+                else: self.screen.ErorrMessage()
+        else:
+            self.screen.UserMenu()
+            while True:
+                chose = input()
+                if chose == '1' or chose == '2':
+                    if chose == '1':
+                         self.GiveCofeeCup(current_user)
+                         break
+                    if chose == '2':
+                        self.ChooseUser()
+                        break
+                else: self.screen.ErorrMessage()
+        self.MainMenu(current_user)
+
+    def GiveCofeeCup(self, current_user):
+        order = self.Cook_Coffee()
+        cup_add = coffes.insert().values(Orderer_name = current_user.name, Coffe_type = order.type, Coffe_size = order.size, Sugar_count = order.sugar, Milk_count = order.milk, Cinnamon_count = order.cinnamon, Price = order.Count_Price())
+        con.execute(cup_add)
+        return order
 
 class Screen(object):
 
@@ -124,11 +169,24 @@ class Screen(object):
         """Constructor"""
         self.coffe_machin = cofee_machin
         self.coffe_machin.SetScreen(self);
-        self.current_user = self.StartMenu()
+        self.current_user = self.coffe_machin.ChooseUser()
         self.current_user = self.coffe_machin.CreateUser(self.current_user)
 
     def StartInput(self):
         print("Введите имя пользователя: ")
+
+    def CoffeeGiven(self):
+        print("Вот ваш кофе. ")
+
+    def AdminMenu(self):
+        print("Введите 1, чтобы получить список всех пользователей,");
+        print("Введите 2, чтобы заказать кофе,");
+        print("Введите 3, чтобы получить список всех заказов,");
+        print("Введите 4, чтобы выйти.");
+
+    def UserMenu(self):
+        print("Введите 1, чтобы заказать кофе,");
+        print("Введите 2, чтобы выйти.");
 
     def AdminInfo(self):
         print("Введите 1, если данный пользователь является администратором,");
@@ -182,7 +240,7 @@ class CofeeCup(object):
         else:
             return False
 
-    def Set_Size(self, chosen):
+    def Set_Size(self):
         chosen = input()
         if chosen in sizes:
             self.size = sizes[chosen];
@@ -190,7 +248,7 @@ class CofeeCup(object):
         else:
             return False
 
-    def Set_Sugar(self, chosen):
+    def Set_Sugar(self):
         chosen = int(input())
         if chosen > -1:
             self.sugar = chosen
@@ -198,7 +256,7 @@ class CofeeCup(object):
         else:
             return False
 
-    def Set_Milk(self, chosen):
+    def Set_Milk(self):
         chosen = int(input())
         if chosen > -1:
             self.milk = chosen
@@ -206,13 +264,16 @@ class CofeeCup(object):
         else:
             return False
 
-    def Set_Cinnamon(self, chosen):
+    def Set_Cinnamon(self):
         chosen = int(input())
         if chosen > -1:
             self.cinnamon = chosen
             return True
         else:
             return False
+
+    def Count_Price(self):
+        return types_prices[self.type] + sizes_prises[self.size] + adds_prises[1] * self.sugar + adds_prises[2] * self.milk + adds_prises[3] * self.cinnamon
 
 
 if __name__ == "__main__":
