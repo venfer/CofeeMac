@@ -133,12 +133,12 @@ class CofeeMachine(object):
                 chose = input()
                 if chose == '1' or chose == '2' or chose == '3' or chose == '4':
                     if chose == '1':
-                         self.Cook_Coffee()
+                         self.GiveUsersInfo()
                          break
                     if chose == '2':
                          self.GiveCofeeCup()
                     if chose == '3':
-                         self.Cook_Coffee()
+                         self.GiveOrdersInfo()
                          break
                     if chose == '4':
                         self.ChooseUser()
@@ -163,6 +163,17 @@ class CofeeMachine(object):
         con.execute(cup_add)
         return order
 
+    def GiveUsersInfo(self):
+        proto_user_list = users.select().where(users.c.User_ID != 0)
+        user_list = con.execute(proto_user_list)
+        self.screen.ShowUsers(user_list.fetchall());
+
+    def GiveOrdersInfo(self):
+        proto_order_list = coffes.select().where(coffes.c.Order_ID != 0)
+        order_list = con.execute(proto_order_list)
+        self.screen.ShowOrders(order_list.fetchall());
+
+
 class Screen(object):
 
     def __init__(self, cofee_machin):
@@ -174,6 +185,16 @@ class Screen(object):
 
     def StartInput(self):
         print("Введите имя пользователя: ")
+
+    def ShowUsers(self, users_list):
+        print("Список всех пользователей:")
+        for user in users_list:
+            print(user)
+
+    def ShowOrders(self, orders_list):
+        print("Список всех заказов:")
+        for user in orders_list:
+            print(user)
 
     def CoffeeGiven(self):
         print("Вот ваш кофе. ")
